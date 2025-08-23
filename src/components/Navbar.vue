@@ -40,7 +40,8 @@
 
         <!-- Right: CTA -->
         <div class="d-flex mt-3 mt-lg-0">
-          <RouterLink to="/account" class="btn btn-dark btn-sm">Register</RouterLink>
+          <RouterLink to="/auth/login" class="btn btn-outline-dark btn-sm me-2">Log in</RouterLink>
+          <RouterLink to="/auth/register" class="btn btn-dark btn-sm">Register</RouterLink>
         </div>
       </div>
     </div>
