@@ -7,6 +7,9 @@ const routes = [
   { path: '/plans',     name: 'plans',     component: () => import('../views/Plans.vue') },
   { path: '/community', name: 'community', component: () => import('../views/Community.vue') },
   { path: '/account',   name: 'account',   component: () => import('../views/Account.vue') },
+  // src/router/index.js
+  { path: '/auth/register', name: 'register', component: () => import('../views/auth/Register.vue') },
+  { path: '/auth/login',    name: 'login',    component: () => import('../views/auth/Login.vue') },
 ]
 
 const router = createRouter({

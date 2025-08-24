@@ -19,6 +19,9 @@
             <li><RouterLink to="/map">Map</RouterLink></li>
             <li><RouterLink to="/progress">Progress</RouterLink></li>
             <li><RouterLink to="/community">Community</RouterLink></li>
+            <li><RouterLink to="/account">Account</RouterLink></li>
+            <li><RouterLink to="/login">Login</RouterLink></li>
+            <li><RouterLink to="/register">Register</RouterLink></li>
           </ul>
         </div>
         <div class="col-6 col-md-4">
