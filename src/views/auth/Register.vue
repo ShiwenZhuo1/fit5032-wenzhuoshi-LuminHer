@@ -99,7 +99,6 @@
                          :class="confirmOk ? 'text-success' : 'text-danger'">
                     {{ confirmOk ? 'Passwords match.' : 'Passwords do not match.' }}
                   </small>
-                  <div v-if="errors.confirm" class="invalid-feedback d-block">{{ errors.confirm }}</div>
                 </div>
 
                 <button type="submit" class="btn btn-dark w-100 mb-2">Create account</button>
