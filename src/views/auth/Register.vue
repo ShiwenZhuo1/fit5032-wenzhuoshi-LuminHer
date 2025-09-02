@@ -62,7 +62,7 @@
                     placeholder="••••••••"
                   />
 
-                  <!-- Dynamic next-hint + strength (only after first touch or submit) -->
+                  <!-- Dynamic hint + strength (after first touch or submit) -->
                   <small
                     v-if="touched.password || submitted"
                     class="form-text"
@@ -99,6 +99,7 @@
                          :class="confirmOk ? 'text-success' : 'text-danger'">
                     {{ confirmOk ? 'Passwords match.' : 'Passwords do not match.' }}
                   </small>
+                  <!-- Only show one confirm error message (avoid duplicates) -->
                 </div>
 
                 <button type="submit" class="btn btn-dark w-100 mb-2">Create account</button>
@@ -118,33 +119,24 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
+import { useAuth } from '../../stores/auth' // relative path; Pinia store
 
-/* ---------- state ---------- */
-const form = ref({
-  name: '',
-  email: '',
-  password: '',
-  confirm: '',
-})
+// simple auth store & router
+const router = useRouter()
+const auth = useAuth()
 
-const errors = ref({
-  name: null,
-  email: null,
-  password: null,
-  confirm: null,
-})
+// form state
+const form = ref({ name: '', email: '', password: '', confirm: '' })
 
-const touched = ref({
-  name: false,
-  email: false,
-  password: false,
-  confirm: false,
-})
+// error state
+const errors = ref({ name: null, email: null, password: null, confirm: null })
 
+// touched state (to control hints/strength)
+const touched = ref({ name: false, email: false, password: false, confirm: false })
 const submitted = ref(false)
 
-/* ---------- helpers ---------- */
+// helpers
 const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const upperRe = /[A-Z]/
 const lowerRe = /[a-z]/
@@ -152,7 +144,7 @@ const numRe   = /\d/
 const specRe  = /[\W_]/
 const PWD_MIN = 6
 
-/* password checks (computed so UI auto-updates) */
+// password checks
 const pwdChecks = computed(() => ({
   len: (form.value.password || '').length >= PWD_MIN,
   up : upperRe.test(form.value.password || ''),
@@ -172,7 +164,7 @@ const unmetList = computed(() => {
 })
 const nextPwdHint = computed(() => (passwordOk.value ? 'Strong password ✓' : unmetList.value[0] ?? ''))
 
-/* strength bar */
+// strength bar
 const passedCount = computed(() => Object.values(pwdChecks.value).filter(Boolean).length)
 const strengthPercent = computed(() => (passedCount.value / 5) * 100)
 const strengthClass = computed(() => {
@@ -182,40 +174,31 @@ const strengthClass = computed(() => {
   return 'bg-danger'
 })
 
-/* confirm */
+// confirm match
 const confirmOk = computed(() =>
   form.value.confirm.length > 0 && form.value.confirm === form.value.password
 )
 
-/* ---------- validators ---------- */
-/* name */
+// validators
 function validateName(strict = false) {
   const v = (form.value.name || '').trim()
   const ok = v.length >= 2
   if (ok) errors.value.name = null
   else if (strict || submitted.value) errors.value.name = 'Name must be at least 2 characters.'
 }
-
-/* email */
 function validateEmail(strict = false) {
   const v = (form.value.email || '').trim()
   const ok = emailRe.test(v)
   if (ok) errors.value.email = null
   else if (strict || submitted.value) errors.value.email = 'Enter a valid email address.'
 }
-
-/* password */
 function validatePassword(strict = false) {
   if (passwordOk.value) {
     errors.value.password = null
   } else if (strict || submitted.value) {
-    // show the first unmet rule as the message
-    errors.value.password = unmetList.value[0] ||
-      'Password must meet the requirements.'
+    errors.value.password = unmetList.value[0] || 'Password must meet the requirements.'
   }
 }
-
-/* confirm password */
 function validateConfirm(strict = false) {
   if (confirmOk.value) {
     errors.value.confirm = null
@@ -224,18 +207,18 @@ function validateConfirm(strict = false) {
   }
 }
 
-/* ---------- input handlers (mark touched; no errors on typing) ---------- */
-function onNameInput()     { touched.value.name = true; }
-function onEmailInput()    { touched.value.email = true; }
-function onPwdInput()      { touched.value.password = true; }
-function onConfirmInput()  { touched.value.confirm = true; }
+// input handlers
+function onNameInput()    { touched.value.name = true }
+function onEmailInput()   { touched.value.email = true }
+function onPwdInput()     { touched.value.password = true }
+function onConfirmInput() { touched.value.confirm = true }
 
-/* overall error flag */
+// overall errors
 const hasErrors = computed(() =>
   !!errors.value.name || !!errors.value.email || !!errors.value.password || !!errors.value.confirm
 )
 
-/* submit */
+// submit: validate -> login via store -> route by role
 function onSubmit() {
   submitted.value = true
   validateName(true)
@@ -243,10 +226,17 @@ function onSubmit() {
   validatePassword(true)
   validateConfirm(true)
   if (hasErrors.value) return
-  alert('Registration form valid (demo).')
+
+  auth.login({ email: form.value.email, name: form.value.name })
+
+  if (auth.user.role === 'admin') {
+    router.push({ name: 'adminHome' })
+  } else {
+    router.push({ name: 'userHome' })
+  }
 }
 
-/* clear */
+// clear
 function clearForm() {
   form.value = { name: '', email: '', password: '', confirm: '' }
   errors.value = { name: null, email: null, password: null, confirm: null }

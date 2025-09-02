@@ -1,20 +1,61 @@
+// src/router/index.js
 import { createRouter, createWebHistory } from 'vue-router'
-
-const routes = [
-  { path: '/',          name: 'home',      component: () => import('../views/Home.vue') },
-  { path: '/map',       name: 'map',       component: () => import('../views/Map.vue') },
-  { path: '/progress',  name: 'progress',  component: () => import('../views/Progress.vue') },
-  { path: '/plans',     name: 'plans',     component: () => import('../views/Plans.vue') },
-  { path: '/community', name: 'community', component: () => import('../views/Community.vue') },
-  { path: '/account',   name: 'account',   component: () => import('../views/Account.vue') },
-  // src/router/index.js
-  { path: '/auth/register', name: 'register', component: () => import('../views/auth/Register.vue') },
-  { path: '/auth/login',    name: 'login',    component: () => import('../views/auth/Login.vue') },
-]
+import Home from '../views/Home.vue'
+import Login from '../views/auth/Login.vue'
+import Register from '../views/auth/Register.vue'
+import Plans from '../views/Plans.vue'
+import Map from '../views/Map.vue'
+import Progress from '../views/Progress.vue'
+import Community from '../views/Community.vue'
+import Account from '../views/Account.vue'
+import { useAuth } from '../stores/auth'
 
 const router = createRouter({
   history: createWebHistory(),
-  routes,
+  routes: [
+    { path: '/', name: 'home', component: Home },
+    { path: '/auth/login', name: 'login', component: Login },
+    { path: '/auth/register', name: 'register', component: Register },
+
+    // dashboards with meta
+    {
+      path: '/dashboard',
+      name: 'userHome',
+      component: () => import('../views/user/UserDashboard.vue'),
+      meta: { auth: true, role: 'user' }
+    },
+    {
+      path: '/admin',
+      name: 'adminHome',
+      component: () => import('../views/admin/AdminDashboard.vue'),
+      meta: { auth: true, role: 'admin' }
+    },
+
+    { path: '/plans', name: 'plans', component: Plans },
+    { path: '/map', name: 'map', component: Map },
+    { path: '/progress', name: 'progress', component: Progress },
+    { path: '/community', name: 'community', component: Community },
+    { path: '/account', name: 'account', component: Account },
+  ],
+})
+
+// global guard
+router.beforeEach((to) => {
+  const auth = useAuth()
+
+  // need login
+  if (to.meta?.auth && !auth.isAuthenticated) {
+    return { name: 'login', query: { redirect: to.fullPath } }
+  }
+
+  // role gate
+  if (to.meta?.role && auth.isAuthenticated) {
+    const role = auth.user?.role
+    if (to.meta.role === 'admin' && role !== 'admin') return { name: 'userHome' }
+    if (to.meta.role === 'user'  && role !== 'user')  return { name: 'adminHome' }
+  }
+
+  return true
 })
 
 export default router

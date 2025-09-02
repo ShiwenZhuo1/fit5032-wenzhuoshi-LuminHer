@@ -50,12 +50,17 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
+import { useAuth } from '../../stores/auth' // relative path; Pinia store
 
 const email = ref('')
 const password = ref('')
 const submitted = ref(false)
 
+const router = useRouter()
+const auth = useAuth()
+
+// same validation as register (email pattern + min length)
 const emailValid = computed(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value))
 const pwdValid   = computed(() => password.value.length >= 6)
 
@@ -63,9 +68,18 @@ const showEmailErr = computed(() => submitted.value && !emailValid.value)
 const showPwdErr   = computed(() => submitted.value && !pwdValid.value)
 const hasErrors    = computed(() => !emailValid.value || !pwdValid.value)
 
+// submit: validate -> login via store -> route by role
 function onSubmit() {
   submitted.value = true
   if (hasErrors.value) return
-  alert('Login form valid (demo).')
+
+  // demo auth (replace with API later)
+  auth.login({ email: email.value, name: 'Demo User' })
+
+  if (auth.user.role === 'admin') {
+    router.push({ name: 'adminHome' })
+  } else {
+    router.push({ name: 'userHome' })
+  }
 }
 </script>
