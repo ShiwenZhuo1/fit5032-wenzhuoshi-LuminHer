@@ -10,7 +10,7 @@
         <div class="col-12 col-md-7 col-lg-5">
           <div class="card shadow-sm border-0">
             <div class="card-body p-4">
-              <!-- Global alert (after submit only) -->
+              <!-- Global alert after submit -->
               <div v-if="submitted && hasErrors" class="alert alert-danger">
                 Please fix the errors below and try again.
               </div>
@@ -62,7 +62,7 @@
                     placeholder="••••••••"
                   />
 
-                  <!-- Dynamic hint + strength (after first touch or submit) -->
+                  <!-- Live hint + strength after first touch/submit -->
                   <small
                     v-if="touched.password || submitted"
                     class="form-text"
@@ -82,7 +82,7 @@
                   <div v-if="errors.password" class="invalid-feedback d-block">{{ errors.password }}</div>
                 </div>
 
-                <!-- Confirm Password -->
+                <!-- Confirm Password (single message only) -->
                 <div class="mb-3">
                   <label for="pwd2" class="form-label">Confirm Password</label>
                   <input
@@ -99,11 +99,15 @@
                          :class="confirmOk ? 'text-success' : 'text-danger'">
                     {{ confirmOk ? 'Passwords match.' : 'Passwords do not match.' }}
                   </small>
-                  <!-- Only show one confirm error message (avoid duplicates) -->
                 </div>
 
                 <button type="submit" class="btn btn-dark w-100 mb-2">Create account</button>
                 <button type="button" class="btn btn-secondary w-100" @click="clearForm">Clear form</button>
+
+                <!-- Demo hint: role mapping -->
+                <p class="text-muted small mt-3 mb-0">
+                  Tip: emails ending with <code>@admin.com</code> will register as <strong>Admin</strong> for this demo.
+                </p>
               </form>
 
               <p class="text-center small mt-3 mb-0">
@@ -118,11 +122,11 @@
 </template>
 
 <script setup>
+// Register: validate inputs, derive role from email domain, save to Pinia, redirect by role.
 import { ref, computed } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
-import { useAuth } from '../../stores/auth' // relative path; Pinia store
+import { useAuth } from '../../stores/auth'
 
-// simple auth store & router
 const router = useRouter()
 const auth = useAuth()
 
@@ -132,11 +136,11 @@ const form = ref({ name: '', email: '', password: '', confirm: '' })
 // error state
 const errors = ref({ name: null, email: null, password: null, confirm: null })
 
-// touched state (to control hints/strength)
+// touched flags
 const touched = ref({ name: false, email: false, password: false, confirm: false })
 const submitted = ref(false)
 
-// helpers
+// email & password helpers
 const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const upperRe = /[A-Z]/
 const lowerRe = /[a-z]/
@@ -144,7 +148,7 @@ const numRe   = /\d/
 const specRe  = /[\W_]/
 const PWD_MIN = 6
 
-// password checks
+// password rule checks
 const pwdChecks = computed(() => ({
   len: (form.value.password || '').length >= PWD_MIN,
   up : upperRe.test(form.value.password || ''),
@@ -200,25 +204,22 @@ function validatePassword(strict = false) {
   }
 }
 function validateConfirm(strict = false) {
-  if (confirmOk.value) {
-    errors.value.confirm = null
-  } else if (strict || submitted.value) {
-    errors.value.confirm = 'Passwords do not match.'
-  }
+  if (confirmOk.value) errors.value.confirm = null
+  else if (strict || submitted.value) errors.value.confirm = 'Passwords do not match.'
 }
 
-// input handlers
+// touch handlers
 function onNameInput()    { touched.value.name = true }
 function onEmailInput()   { touched.value.email = true }
 function onPwdInput()     { touched.value.password = true }
 function onConfirmInput() { touched.value.confirm = true }
 
-// overall errors
+// overall error
 const hasErrors = computed(() =>
   !!errors.value.name || !!errors.value.email || !!errors.value.password || !!errors.value.confirm
 )
 
-// submit: validate -> login via store -> route by role
+// submit: validate -> derive role from email -> save -> redirect
 function onSubmit() {
   submitted.value = true
   validateName(true)
@@ -227,16 +228,19 @@ function onSubmit() {
   validateConfirm(true)
   if (hasErrors.value) return
 
-  auth.login({ email: form.value.email, name: form.value.name })
+  const lower = form.value.email.toLowerCase()
+  const role = lower.endsWith('@admin.com') ? 'admin' : 'user'
 
-  if (auth.user.role === 'admin') {
-    router.push({ name: 'adminHome' })
-  } else {
-    router.push({ name: 'userHome' })
-  }
+  auth.login({
+    email: lower,
+    name: form.value.name.trim(),
+    role
+  })
+
+  router.push({ name: role === 'admin' ? 'adminHome' : 'userHome' })
 }
 
-// clear
+// clear form
 function clearForm() {
   form.value = { name: '', email: '', password: '', confirm: '' }
   errors.value = { name: null, email: null, password: null, confirm: null }

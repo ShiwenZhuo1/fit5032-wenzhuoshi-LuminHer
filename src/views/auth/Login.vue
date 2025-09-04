@@ -10,6 +10,7 @@
         <div class="col-12 col-md-7 col-lg-5">
           <div class="card shadow-sm border-0">
             <div class="card-body p-4">
+              <!-- Global error alert after submit -->
               <div v-if="submitted && hasErrors" class="alert alert-danger">
                 Please fix the errors below and try again.
               </div>
@@ -18,18 +19,31 @@
                 <!-- Email -->
                 <div class="mb-3">
                   <label for="email" class="form-label">Email</label>
-                  <input id="email" v-model.trim="email" type="email"
-                         class="form-control" :class="{'is-invalid': showEmailErr}"
-                         placeholder="you@example.com" required />
+                  <input
+                    id="email"
+                    v-model.trim="email"
+                    type="email"
+                    class="form-control"
+                    :class="{ 'is-invalid': showEmailErr }"
+                    placeholder="you@example.com"
+                    required
+                  />
                   <div class="invalid-feedback">Enter a valid email address.</div>
                 </div>
 
                 <!-- Password -->
                 <div class="mb-3">
                   <label for="pwd" class="form-label">Password</label>
-                  <input id="pwd" v-model="password" type="password"
-                         class="form-control" :class="{'is-invalid': showPwdErr}"
-                         placeholder="••••••••" minlength="6" required />
+                  <input
+                    id="pwd"
+                    v-model="password"
+                    type="password"
+                    class="form-control"
+                    :class="{ 'is-invalid': showPwdErr }"
+                    placeholder="••••••••"
+                    minlength="6"
+                    required
+                  />
                   <div class="invalid-feedback">Password must be at least 6 characters.</div>
                 </div>
 
@@ -49,37 +63,43 @@
 </template>
 
 <script setup>
+// Validates email & password, then derives role from email domain.
+// If email ends with "@admin.com" => role: 'admin', otherwise 'user'.
+// Persists auth via Pinia and redirects by role.
 import { ref, computed } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
-import { useAuth } from '../../stores/auth' // relative path; Pinia store
+import { useAuth } from '../../stores/auth'
+
+const router = useRouter()
+const auth = useAuth()
 
 const email = ref('')
 const password = ref('')
 const submitted = ref(false)
 
-const router = useRouter()
-const auth = useAuth()
-
-// same validation as register (email pattern + min length)
 const emailValid = computed(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value))
-const pwdValid   = computed(() => password.value.length >= 6)
+const pwdValid   = computed(() => (password.value || '').length >= 6)
 
 const showEmailErr = computed(() => submitted.value && !emailValid.value)
 const showPwdErr   = computed(() => submitted.value && !pwdValid.value)
 const hasErrors    = computed(() => !emailValid.value || !pwdValid.value)
 
-// submit: validate -> login via store -> route by role
 function onSubmit() {
   submitted.value = true
   if (hasErrors.value) return
 
-  // demo auth (replace with API later)
-  auth.login({ email: email.value, name: 'Demo User' })
+  const lower = email.value.toLowerCase()
+  const role = lower.endsWith('@admin.com') ? 'admin' : 'user'
 
-  if (auth.user.role === 'admin') {
-    router.push({ name: 'adminHome' })
-  } else {
-    router.push({ name: 'userHome' })
-  }
+  auth.login({
+    email: lower,
+    name: lower.split('@')[0],
+    role
+  })
+
+  router.push({ name: role === 'admin' ? 'adminHome' : 'userHome' })
 }
 </script>
+
+<style scoped>
+</style>

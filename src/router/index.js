@@ -3,11 +3,14 @@ import { createRouter, createWebHistory } from 'vue-router'
 import Home from '../views/Home.vue'
 import Login from '../views/auth/Login.vue'
 import Register from '../views/auth/Register.vue'
-import Plans from '../views/Plans.vue'
+const PlanIndex = () => import('../plans/PlanIndex.vue')
+const PlanForm  = () => import('../plans/PlanForm.vue')
+
 import Map from '../views/Map.vue'
 import Progress from '../views/Progress.vue'
 import Community from '../views/Community.vue'
 import Account from '../views/Account.vue'
+
 import { useAuth } from '../stores/auth'
 
 const router = createRouter({
@@ -16,45 +19,26 @@ const router = createRouter({
     { path: '/', name: 'home', component: Home },
     { path: '/auth/login', name: 'login', component: Login },
     { path: '/auth/register', name: 'register', component: Register },
-
-    // dashboards with meta
-    {
-      path: '/dashboard',
-      name: 'userHome',
-      component: () => import('../views/user/UserDashboard.vue'),
-      meta: { auth: true, role: 'user' }
-    },
-    {
-      path: '/admin',
-      name: 'adminHome',
-      component: () => import('../views/admin/AdminDashboard.vue'),
-      meta: { auth: true, role: 'admin' }
-    },
-
-    { path: '/plans', name: 'plans', component: Plans },
+    { path: '/plans',     name: 'plans',    component: PlanIndex },
+    { path: '/plans/new', name: 'planForm', component: PlanForm  },
     { path: '/map', name: 'map', component: Map },
     { path: '/progress', name: 'progress', component: Progress },
     { path: '/community', name: 'community', component: Community },
     { path: '/account', name: 'account', component: Account },
+    { path: '/dashboard', name: 'userHome',  component: () => import('../views/user/UserDashboard.vue'),  meta:{auth:true, role:'user'} },
+    { path: '/admin',     name: 'adminHome', component: () => import('../views/admin/AdminDashboard.vue'), meta:{auth:true, role:'admin'} },
   ],
 })
 
-// global guard
+
 router.beforeEach((to) => {
   const auth = useAuth()
-
-  // need login
-  if (to.meta?.auth && !auth.isAuthenticated) {
-    return { name: 'login', query: { redirect: to.fullPath } }
-  }
-
-  // role gate
+  if (to.meta?.auth && !auth.isAuthenticated) return { name: 'login', query: { redirect: to.fullPath } }
   if (to.meta?.role && auth.isAuthenticated) {
     const role = auth.user?.role
     if (to.meta.role === 'admin' && role !== 'admin') return { name: 'userHome' }
     if (to.meta.role === 'user'  && role !== 'user')  return { name: 'adminHome' }
   }
-
   return true
 })
 
