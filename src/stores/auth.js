@@ -21,7 +21,7 @@ export const useAuth = defineStore('auth', {
     },
 
     login({ email, password, role }) {
-      // demo only: role 通过 UI 选择；真实项目请从后端返回
+    
       const user = {
         name: email.split('@')[0],
         email,

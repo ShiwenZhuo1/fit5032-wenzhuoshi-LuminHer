@@ -22,7 +22,7 @@
         <!-- Left: primary nav -->
         <ul class="navbar-nav ms-auto align-items-lg-center">
           <li class="nav-item">
-            <RouterLink class="nav-link" to="/plans">Plans</RouterLink>
+            <RouterLink class="nav-link" :to="{ name: 'plans' }">Plans</RouterLink>
           </li>
           <li class="nav-item">
             <RouterLink class="nav-link" to="/map">Map</RouterLink>
