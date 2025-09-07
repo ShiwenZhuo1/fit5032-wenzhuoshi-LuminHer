@@ -10,40 +10,24 @@
         <div class="col-12 col-md-7 col-lg-5">
           <div class="card shadow-sm border-0">
             <div class="card-body p-4">
-              <!-- Global error alert after submit -->
-              <div v-if="submitted && hasErrors" class="alert alert-danger">
-                Please fix the errors below and try again.
+              <div v-if="submitted && (hasErrors || serverErr)" class="alert alert-danger">
+                {{ serverErr || 'Please fix the errors below and try again.' }}
               </div>
 
               <form @submit.prevent="onSubmit" novalidate>
-                <!-- Email -->
                 <div class="mb-3">
                   <label for="email" class="form-label">Email</label>
-                  <input
-                    id="email"
-                    v-model.trim="email"
-                    type="email"
-                    class="form-control"
-                    :class="{ 'is-invalid': showEmailErr }"
-                    placeholder="you@example.com"
-                    required
-                  />
+                  <input id="email" v-model.trim="email" type="email"
+                         class="form-control" :class="{'is-invalid': showEmailErr}"
+                         placeholder="you@example.com" required />
                   <div class="invalid-feedback">Enter a valid email address.</div>
                 </div>
 
-                <!-- Password -->
                 <div class="mb-3">
                   <label for="pwd" class="form-label">Password</label>
-                  <input
-                    id="pwd"
-                    v-model="password"
-                    type="password"
-                    class="form-control"
-                    :class="{ 'is-invalid': showPwdErr }"
-                    placeholder="••••••••"
-                    minlength="6"
-                    required
-                  />
+                  <input id="pwd" v-model="password" type="password"
+                         class="form-control" :class="{'is-invalid': showPwdErr}"
+                         placeholder="••••••••" minlength="6" required />
                   <div class="invalid-feedback">Password must be at least 6 characters.</div>
                 </div>
 
@@ -51,8 +35,11 @@
               </form>
 
               <p class="text-center small mt-3 mb-0">
-                Don’t have an account?
-                <RouterLink to="/auth/register">Create one</RouterLink>
+                Don’t have an account? <RouterLink to="/auth/register">Create one</RouterLink>
+              </p>
+
+              <p class="text-muted small mt-3 mb-0">
+                Demo: use <code>admin@admin.com</code> / <code>Admin123!</code> for Admin.
               </p>
             </div>
           </div>
@@ -63,19 +50,19 @@
 </template>
 
 <script setup>
-// Validates email & password, then derives role from email domain.
-// If email ends with "@admin.com" => role: 'admin', otherwise 'user'.
-// Persists auth via Pinia and redirects by role.
 import { ref, computed } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { useAuth } from '../../stores/auth'
+import { useUsers } from '../../stores/users'
 
 const router = useRouter()
 const auth = useAuth()
+const users = useUsers()
 
 const email = ref('')
 const password = ref('')
 const submitted = ref(false)
+const serverErr = ref('')
 
 const emailValid = computed(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value))
 const pwdValid   = computed(() => (password.value || '').length >= 6)
@@ -89,17 +76,14 @@ function onSubmit() {
   if (hasErrors.value) return
 
   const lower = email.value.toLowerCase()
-  const role = lower.endsWith('@admin.com') ? 'admin' : 'user'
+  const found = auth.validate(lower, password.value)   // 👈 调用 validate
 
-  auth.login({
-    email: lower,
-    name: lower.split('@')[0],
-    role
-  })
+  if (!found) {
+    alert('Invalid email or password')
+    return
+  }
 
-  router.push({ name: role === 'admin' ? 'adminHome' : 'userHome' })
+  auth.login(found)
+  router.push({ name: found.role === 'admin' ? 'adminHome' : 'userHome' })
 }
 </script>
-
-<style scoped>
-</style>

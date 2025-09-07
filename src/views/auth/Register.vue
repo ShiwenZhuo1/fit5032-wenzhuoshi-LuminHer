@@ -11,8 +11,8 @@
           <div class="card shadow-sm border-0">
             <div class="card-body p-4">
               <!-- Global alert after submit -->
-              <div v-if="submitted && hasErrors" class="alert alert-danger">
-                Please fix the errors below and try again.
+              <div v-if="submitted && (hasErrors || serverErr)" class="alert alert-danger">
+                {{ serverErr || 'Please fix the errors below and try again.' }}
               </div>
 
               <form @submit.prevent="onSubmit" novalidate>
@@ -122,25 +122,27 @@
 </template>
 
 <script setup>
-// Register: validate inputs, derive role from email domain, save to Pinia, redirect by role.
+// Register with local users store:
+// 1) Validate form
+// 2) Check duplicate email in users store
+// 3) Save new user (role derived from email)
+// 4) Auto-login via auth store and redirect by role
+
 import { ref, computed } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { useAuth } from '../../stores/auth'
+import { useUsers } from '../../stores/users'
 
 const router = useRouter()
 const auth = useAuth()
+const users = useUsers()
 
-// form state
 const form = ref({ name: '', email: '', password: '', confirm: '' })
-
-// error state
 const errors = ref({ name: null, email: null, password: null, confirm: null })
-
-// touched flags
 const touched = ref({ name: false, email: false, password: false, confirm: false })
 const submitted = ref(false)
+const serverErr = ref('')
 
-// email & password helpers
 const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const upperRe = /[A-Z]/
 const lowerRe = /[a-z]/
@@ -148,7 +150,6 @@ const numRe   = /\d/
 const specRe  = /[\W_]/
 const PWD_MIN = 6
 
-// password rule checks
 const pwdChecks = computed(() => ({
   len: (form.value.password || '').length >= PWD_MIN,
   up : upperRe.test(form.value.password || ''),
@@ -168,7 +169,6 @@ const unmetList = computed(() => {
 })
 const nextPwdHint = computed(() => (passwordOk.value ? 'Strong password ✓' : unmetList.value[0] ?? ''))
 
-// strength bar
 const passedCount = computed(() => Object.values(pwdChecks.value).filter(Boolean).length)
 const strengthPercent = computed(() => (passedCount.value / 5) * 100)
 const strengthClass = computed(() => {
@@ -178,12 +178,10 @@ const strengthClass = computed(() => {
   return 'bg-danger'
 })
 
-// confirm match
 const confirmOk = computed(() =>
   form.value.confirm.length > 0 && form.value.confirm === form.value.password
 )
 
-// validators
 function validateName(strict = false) {
   const v = (form.value.name || '').trim()
   const ok = v.length >= 2
@@ -197,31 +195,27 @@ function validateEmail(strict = false) {
   else if (strict || submitted.value) errors.value.email = 'Enter a valid email address.'
 }
 function validatePassword(strict = false) {
-  if (passwordOk.value) {
-    errors.value.password = null
-  } else if (strict || submitted.value) {
-    errors.value.password = unmetList.value[0] || 'Password must meet the requirements.'
-  }
+  if (passwordOk.value) errors.value.password = null
+  else if (strict || submitted.value) errors.value.password = unmetList.value[0] || 'Password must meet the requirements.'
 }
 function validateConfirm(strict = false) {
   if (confirmOk.value) errors.value.confirm = null
   else if (strict || submitted.value) errors.value.confirm = 'Passwords do not match.'
 }
 
-// touch handlers
 function onNameInput()    { touched.value.name = true }
 function onEmailInput()   { touched.value.email = true }
 function onPwdInput()     { touched.value.password = true }
 function onConfirmInput() { touched.value.confirm = true }
 
-// overall error
 const hasErrors = computed(() =>
   !!errors.value.name || !!errors.value.email || !!errors.value.password || !!errors.value.confirm
 )
 
-// submit: validate -> derive role from email -> save -> redirect
 function onSubmit() {
   submitted.value = true
+  serverErr.value = ''
+
   validateName(true)
   validateEmail(true)
   validatePassword(true)
@@ -229,23 +223,37 @@ function onSubmit() {
   if (hasErrors.value) return
 
   const lower = form.value.email.toLowerCase()
+  if (users.exists(lower)) {
+    serverErr.value = 'This email is already registered.'
+    return
+  }
+
   const role = lower.endsWith('@admin.com') ? 'admin' : 'user'
 
-  auth.login({
-    email: lower,
+  // Save to local users store
+  const newUser = users.register({
     name: form.value.name.trim(),
+    email: lower,
+    password: form.value.password,
     role
+  })
+
+  // Auto-login
+  auth.login({
+    email: newUser.email,
+    name: newUser.name,
+    role: newUser.role
   })
 
   router.push({ name: role === 'admin' ? 'adminHome' : 'userHome' })
 }
 
-// clear form
 function clearForm() {
   form.value = { name: '', email: '', password: '', confirm: '' }
   errors.value = { name: null, email: null, password: null, confirm: null }
   touched.value = { name: false, email: false, password: false, confirm: false }
   submitted.value = false
+  serverErr.value = ''
 }
 </script>
 
