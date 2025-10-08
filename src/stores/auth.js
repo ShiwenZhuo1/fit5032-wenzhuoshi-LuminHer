@@ -1,57 +1,56 @@
 import { defineStore } from 'pinia'
-
-const USERS_KEY = 'luminher_users'
-const AUTH_KEY  = 'luminher_auth'
-
-function loadUsers() {
-  try { return JSON.parse(localStorage.getItem(USERS_KEY) || '[]') }
-  catch { return [] }
-}
-function saveUsers(list) {
-  localStorage.setItem(USERS_KEY, JSON.stringify(list))
-}
+import { auth } from '../firebase'
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged,
+  updateProfile,
+} from 'firebase/auth'
 
 export const useAuth = defineStore('auth', {
   state: () => ({
     user: null,
     isAuthenticated: false,
-    users: loadUsers()
+    ready: false,
   }),
+
+  getters: {
+    role: (state) => {
+      if (!state.user?.email) return null
+      return state.user.email.endsWith('@admin.com') ? 'admin' : 'user'
+    },
+    isAdmin: (state) => state.user?.email?.endsWith('@admin.com') || false,
+  },
+
   actions: {
-    register(newUser) {
-      this.users.push(newUser)
-      saveUsers(this.users)
-      this.user = newUser
+    async register({ name, email, password }) {
+      const cred = await createUserWithEmailAndPassword(auth, email, password)
+      if (name?.trim()) {
+        await updateProfile(cred.user, { displayName: name.trim() })
+      }
+      this.user = cred.user
       this.isAuthenticated = true
-      localStorage.setItem(AUTH_KEY, JSON.stringify(newUser))
     },
-    validate(email, password) {   // 👈 登录验证
-      const found = this.users.find(u => u.email === email && u.password === password)
-      return found || null
-    },
-    login(user) {
-      this.user = user
+
+    async login({ email, password }) {
+      const cred = await signInWithEmailAndPassword(auth, email, password)
+      this.user = cred.user
       this.isAuthenticated = true
-      localStorage.setItem(AUTH_KEY, JSON.stringify(user))
     },
-    logout() {
+
+    async logout() {
+      await signOut(auth)
       this.user = null
       this.isAuthenticated = false
-      localStorage.removeItem(AUTH_KEY)
     },
-    loadFromStorage() {
-      try {
-        const saved = JSON.parse(localStorage.getItem(AUTH_KEY))
-        if (saved) {
-          this.user = saved
-          this.isAuthenticated = true
-        }
-        this.users = loadUsers()
-      } catch {
-        this.user = null
-        this.isAuthenticated = false
-        this.users = []
-      }
-    }
-  }
+
+    initAuthListener() {
+      onAuthStateChanged(auth, (u) => {
+        this.user = u || null
+        this.isAuthenticated = !!u
+        this.ready = true
+      })
+    },
+  },
 })
