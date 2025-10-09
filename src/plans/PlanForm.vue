@@ -444,6 +444,7 @@ import { ref, computed, watch } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { useAuth } from '../stores/auth'
 import { useRatings } from '../stores/ratings'
+import { LS_PLANS } from '../utils/storageKeys'
 
 /* Router & stores */
 const router = useRouter()

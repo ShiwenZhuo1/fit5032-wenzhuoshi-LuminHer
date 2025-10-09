@@ -1,6 +1,8 @@
 // src/firebase.js
 import { initializeApp } from 'firebase/app'
-import { getAuth, browserLocalPersistence, setPersistence } from 'firebase/auth'
+import { getAuth } from 'firebase/auth'
+import { getFunctions } from 'firebase/functions'
+import { getFirestore } from 'firebase/firestore'
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -15,6 +17,7 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig)
 export const auth = getAuth(app)
+export const functions = getFunctions(app, 'us-central1')
+export const db = getFirestore(app)               // <-- add
+export default app
 
-// Keep user session after reload
-setPersistence(auth, browserLocalPersistence)
