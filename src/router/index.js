@@ -22,18 +22,9 @@ const router = createRouter({
     { path: '/progress', name: 'progress', component: Progress },
     { path: '/community', name: 'community', component: Community },
     { path: '/account', name: 'account', component: Account },
-    {
-      path: '/dashboard',
-      name: 'userHome',
-      component: () => import('../views/user/UserDashboard.vue'),
-      meta: { auth: true, role: 'user' },
-    },
-    {
-      path: '/admin',
-      name: 'adminHome',
-      component: () => import('../views/admin/AdminDashboard.vue'),
-      meta: { auth: true, role: 'admin' },
-    },
+    { path: '/dashboard', name: 'userHome', component: () => import('../views/user/UserDashboard.vue'), meta: { auth: true, role: 'user' } },
+    { path: '/plans/:id', name: 'planDetail', component: () => import('../plans/PlanDetail.vue') },
+    { path: '/admin', name: 'adminHome', component: () => import('../views/admin/AdminDashboard.vue'), meta: { auth: true, role: 'admin' } },
   ],
 })
 

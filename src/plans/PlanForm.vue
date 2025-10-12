@@ -1,3 +1,4 @@
+<!-- src/plans/PlanForm.vue -->
 <template>
   <div class="container my-4">
     <div class="d-flex align-items-center justify-content-between mb-3">
@@ -444,7 +445,6 @@ import { ref, computed, watch } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { useAuth } from '../stores/auth'
 import { useRatings } from '../stores/ratings'
-import { LS_PLANS } from '../utils/storageKeys'
 
 /* Router & stores */
 const router = useRouter()
@@ -617,9 +617,9 @@ function syncAllergies() {
     : []
 }
 
-/* Formatters (for review) */
-function kg(v) { return v ?? v === 0 ? `${Number(v).toFixed(0)} kg` : '—' }
-function formatProfile(row) {
+/* Formatters for review */
+function kg(v){ return v ?? v===0 ? `${Number(v).toFixed(0)} kg` : '—' }
+function formatProfile(row){
   const p = row.profile || {}
   const sex = p.sex || '—'
   const h = p.height_cm ? `${p.height_cm} cm` : '—'
@@ -629,7 +629,7 @@ function formatProfile(row) {
   const date = p.target_date || 'no date'
   return `${sex}, ${h}, ${weights} • target ${date}`
 }
-function formatActivity(row) {
+function formatActivity(row){
   const a = row.lifestyle || {}
   const lvl = a.activity_level || '—'
   const days = a.workout_days_per_week ?? a.workout_days ?? '0'
@@ -637,7 +637,7 @@ function formatActivity(row) {
   const stress = a.stress || '—'
   return `${lvl} • ${days} d/wk • sleep ${sleep} • stress ${stress}`
 }
-function formatTraining(row) {
+function formatTraining(row){
   const t = row.training || {}
   const goal = t.goal || '—'
   const loc = t.location || '—'
@@ -645,7 +645,7 @@ function formatTraining(row) {
   const note = t.constraints ? ` • note: ${t.constraints}` : ''
   return `${goal} • ${loc} • eq: ${eq}${note}`
 }
-function formatNutrition(row) {
+function formatNutrition(row){
   const n = row.nutrition || {}
   const style = n.diet_style || 'Any'
   const avoid = n.allergies && n.allergies.length ? n.allergies.join(', ') : '—'
@@ -654,16 +654,16 @@ function formatNutrition(row) {
   const meals = n.meals_per_day ? `${n.meals_per_day}/day` : '—'
   return `${style} • avoid: ${avoid} • budget ${budget} • cook ${cook} • ${meals}`
 }
-function strictnessLabelFromRow(v) {
+function strictnessLabelFromRow(v){
   if (v >= 0.8) return 'Very strict'
   if (v >= 0.6) return 'Strict'
   if (v >= 0.4) return 'Balanced'
   if (v >= 0.2) return 'Flexible'
   return 'Very flexible'
 }
-function formatCoaching(row) {
+function formatCoaching(row){
   const c = row.coaching || {}
-  const pace = c.weekly_loss_kg || c.weekly_loss_kg === 0 ? `${Number(c.weekly_loss_kg).toFixed(2)} kg/wk` : '—'
+  const pace = c.weekly_loss_kg || c.weekly_loss_kg===0 ? `${Number(c.weekly_loss_kg).toFixed(2)} kg/wk` : '—'
   const protein = c.protein_high ? 'High protein' : 'Normal protein'
   const strict = strictnessLabelFromRow(c.strictness ?? 0.6)
   return `${pace} • ${protein} • ${strict}`
@@ -700,22 +700,26 @@ function buildPayload() {
 }
 const previewPayload = computed(() => buildPayload())
 
-/* Persistence: localStorage */
-const STORAGE = 'luminher_plans'
-function readAll() { try { return JSON.parse(localStorage.getItem(STORAGE) || '[]') } catch { return [] } }
-function writeAll(list) { localStorage.setItem(STORAGE, JSON.stringify(list)) }
+/* --- Updated Persistence: per-user localStorage isolation --- */
+const STORAGE_PREFIX = 'luminher_plans_'
+const storageKey = () => STORAGE_PREFIX + (auth.user?.email || 'guest').toLowerCase()
+
+function readAll () {
+  try { return JSON.parse(localStorage.getItem(storageKey()) || '[]') } catch { return [] }
+}
+function persist(arr){ localStorage.setItem(storageKey(), JSON.stringify(arr)) }
 
 /* Save + optional share */
 function savePlan() {
   if (!validateAll()) return
   const payload = buildPayload()
 
-  // 1) save to local list
-  const list = readAll()
-  list.push(payload)
-  writeAll(list)
+  // per-user storage
+  const arr = readAll()
+  arr.unshift(payload)
+  persist(arr)
 
-  // 2) optional: share to community ratings store
+  // optional: share to community
   if (share.value.publish && auth.isAuthenticated) {
     ratings.sharePlan({
       title: share.value.title || 'My Plan',
@@ -727,7 +731,6 @@ function savePlan() {
     return
   }
 
-  // 3) default: back to plans list
   router.push({ name: 'plans' })
 }
 </script>

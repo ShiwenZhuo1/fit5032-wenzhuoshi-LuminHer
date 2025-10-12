@@ -1,3 +1,4 @@
+<!-- src/views/auth/Register.vue -->
 <template>
   <section class="bg-light py-5">
     <div class="container">
@@ -11,7 +12,14 @@
           <div class="card shadow-sm border-0">
             <div class="card-body p-4">
               <!-- Error banner -->
-              <div v-if="error" class="alert alert-danger">{{ error }}</div>
+              <div
+                v-if="error"
+                class="alert alert-danger"
+                role="alert"
+                aria-live="assertive"
+              >
+                {{ error }}
+              </div>
 
               <form @submit.prevent="onSubmit" novalidate>
                 <!-- Name -->
@@ -25,6 +33,7 @@
                     required
                     placeholder="Your name"
                     autocomplete="name"
+                    @input="clearError"
                   />
                 </div>
 
@@ -39,6 +48,7 @@
                     required
                     placeholder="you@example.com"
                     autocomplete="email"
+                    @input="clearError"
                   />
                 </div>
 
@@ -50,11 +60,30 @@
                     v-model="password"
                     type="password"
                     class="form-control"
-                    minlength="6"
                     required
                     placeholder="••••••••"
                     autocomplete="new-password"
+                    @input="onPasswordInput"
                   />
+                  <!-- Live validation -->
+                  <ul class="list-unstyled small mt-2 mb-0">
+                    <li :class="ruleClass(hasMinLen)">
+                      <i class="pi" :class="hasMinLen ? 'pi-check-circle' : 'pi-circle'"></i>
+                      At least 6 characters
+                    </li>
+                    <li :class="ruleClass(hasUpper)">
+                      <i class="pi" :class="hasUpper ? 'pi-check-circle' : 'pi-circle'"></i>
+                      One uppercase letter
+                    </li>
+                    <li :class="ruleClass(hasLower)">
+                      <i class="pi" :class="hasLower ? 'pi-check-circle' : 'pi-circle'"></i>
+                      One lowercase letter
+                    </li>
+                    <li :class="ruleClass(hasSpecial)">
+                      <i class="pi" :class="hasSpecial ? 'pi-check-circle' : 'pi-circle'"></i>
+                      One special symbol
+                    </li>
+                  </ul>
                 </div>
 
                 <!-- Confirm -->
@@ -65,17 +94,24 @@
                     v-model="confirm"
                     type="password"
                     class="form-control"
-                    minlength="6"
                     required
                     placeholder="Repeat password"
                     autocomplete="new-password"
+                    @input="clearError"
                   />
-                  <small v-if="confirm && confirm !== password" class="text-danger">
+                  <small
+                    v-if="confirm && confirm !== password"
+                    class="text-danger"
+                  >
                     Passwords do not match.
                   </small>
                 </div>
 
-                <button type="submit" class="btn btn-dark w-100" :disabled="loading">
+                <button
+                  type="submit"
+                  class="btn btn-dark w-100"
+                  :disabled="loading || !allRulesValid"
+                >
                   {{ loading ? 'Creating account…' : 'Create account' }}
                 </button>
               </form>
@@ -93,7 +129,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { useAuth } from '../../stores/auth'
 
@@ -104,13 +140,43 @@ const name = ref('')
 const email = ref('')
 const password = ref('')
 const confirm = ref('')
-
 const loading = ref(false)
 const error = ref('')
 
+// Password validation
+const hasMinLen = computed(() => password.value.length >= 6)
+const hasUpper = computed(() => /[A-Z]/.test(password.value))
+const hasLower = computed(() => /[a-z]/.test(password.value))
+const hasSpecial = computed(() => /[^A-Za-z0-9]/.test(password.value))
+const allRulesValid = computed(
+  () => hasMinLen.value && hasUpper.value && hasLower.value && hasSpecial.value
+)
+
+function ruleClass(ok) {
+  return ok ? 'text-success' : 'text-muted'
+}
+
+function clearError() {
+  if (error.value) error.value = ''
+}
+
+function onPasswordInput() {
+  clearError()
+}
+
+function friendlyAuthError(e) {
+  const code = e?.code || ''
+  const map = {
+    'auth/email-already-in-use': 'This email is already registered.',
+    'auth/invalid-email': 'Please enter a valid email address.',
+    'auth/weak-password': 'Password should be stronger.',
+    'auth/network-request-failed': 'Network error. Please try again.',
+  }
+  return map[code] || e?.message || 'Registration failed. Please try again.'
+}
+
 async function onSubmit() {
   error.value = ''
-
   if (!name.value.trim()) {
     error.value = 'Name is required.'
     return
@@ -119,16 +185,22 @@ async function onSubmit() {
     error.value = 'Passwords do not match.'
     return
   }
+  if (!allRulesValid.value) {
+    error.value = 'Password does not meet the requirements.'
+    return
+  }
 
   try {
     loading.value = true
-    await auth.register({ name: name.value, email: email.value, password: password.value })
-
-    // Simple role routing by email suffix for demo
+    await auth.register({
+      name: name.value,
+      email: email.value,
+      password: password.value,
+    })
     const isAdmin = (email.value || '').endsWith('@admin.com')
     router.push({ name: isAdmin ? 'adminHome' : 'userHome' })
   } catch (e) {
-    error.value = e?.message || 'Registration failed.'
+    error.value = friendlyAuthError(e)
   } finally {
     loading.value = false
   }
@@ -136,5 +208,15 @@ async function onSubmit() {
 </script>
 
 <style scoped>
-/* keep default bootstrap look */
+ul li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.text-success i {
+  color: #198754;
+}
+.text-muted i {
+  color: #ccc;
+}
 </style>
