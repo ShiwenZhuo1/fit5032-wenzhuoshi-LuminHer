@@ -407,7 +407,21 @@
               </div>
             </div>
           </div>
-
+          <!-- AI Advice -->
+          <div class="card mb-4">
+            <div class="card-header fw-bold d-flex justify-content-between align-items-center">
+              AI Recommendation
+              <button class="btn btn-sm btn-outline-primary" @click="runAI" :disabled="ai.loading">
+                {{ ai.loading ? 'Generating…' : 'Generate advice' }}
+              </button>
+            </div>
+            <div class="card-body">
+              <div v-if="!ai.text" class="text-muted small">
+                Click "Generate advice" to get personalized tips for your current plan.
+              </div>
+              <pre v-else class="small mb-0" style="white-space:pre-wrap">{{ ai.text }}</pre>
+            </div>
+          </div>
           <!-- Share -->
           <div class="card mb-4 mt-4">
             <div class="card-header fw-bold">Share</div>
@@ -445,6 +459,7 @@ import { ref, computed, watch } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { useAuth } from '../stores/auth'
 import { useRatings } from '../stores/ratings'
+
 
 /* Router & stores */
 const router = useRouter()
@@ -733,6 +748,68 @@ function savePlan() {
 
   router.push({ name: 'plans' })
 }
+
+// --- AI advice (Gemini) ---
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY
+const GEMINI_MODEL = 'models/gemini-2.0-flash-001'  // ✅ 新的模型名
+const API_VER = 'v1beta'                            // ✅ 使用 v1beta 接口                     // keep v1 when using "-latest"
+
+async function getPlanAdvice(payload) {
+  if (!GEMINI_API_KEY) throw new Error('Missing VITE_GEMINI_API_KEY')
+
+  // single correct endpoint
+  const url = `/gemini/v1beta/models/gemini-2.0-flash-001:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`
+
+  const prompt = [
+    'Please give concise, safe fitness & nutrition advice.',
+    `Sex: ${payload?.profile?.sex || '-'}`,
+    `Age: ${payload?.profile?.dob ? (new Date().getFullYear() - new Date(payload.profile.dob).getFullYear()) : '-'}`,
+    `Height: ${payload?.profile?.height_cm || '-'} cm`,
+    `Current: ${payload?.profile?.weight_current_kg || '-'} kg, Goal: ${payload?.profile?.weight_goal_kg || '-'} kg`,
+    `Activity: ${payload?.lifestyle?.activity_level || '-'}, Sleep: ${payload?.lifestyle?.sleep_hours || '-'}`,
+    `Diet: ${payload?.nutrition?.diet_style || 'Any'}, Avoid: ${(payload?.nutrition?.allergies || []).join(', ') || 'None'}`,
+    `Goal: ${payload?.training?.goal || '-'}, Equipment: ${(payload?.training?.equipment || []).join(', ') || 'none'}`
+  ].join('\n')
+
+  const body = {
+    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    generationConfig: { temperature: 0.7, maxOutputTokens: 512 }
+  }
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  })
+
+  const text = await res.text()
+  if (!res.ok) {
+    let msg = ''
+    try { msg = JSON.parse(text)?.error?.message || '' } catch {}
+    throw new Error(msg || `${res.status} ${res.statusText}`)
+  }
+
+  const data = JSON.parse(text)
+  const out =
+    data?.candidates?.[0]?.content?.parts?.map(p => p.text).join('') || ''
+  return out.trim()
+}
+
+// state + trigger
+const ai = ref({ loading: false, text: '' })
+async function runAI() {
+  ai.value.loading = true
+  ai.value.text = ''
+  try {
+    const payload = buildPayload()
+    ai.value.text = await getPlanAdvice(payload)
+  } catch (e) {
+    ai.value.text = 'Failed to generate advice. ' + (e?.message || '')
+  } finally {
+    ai.value.loading = false
+  }
+}
+
 </script>
 
 <style scoped>
