@@ -144,6 +144,50 @@
         <p v-if="err" class="text-danger small mt-3 mb-0">{{ err }}</p>
       </div>
     </div>
+
+    <!-- Admin email (SendGrid) -->
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-body">
+        <h5 class="fw-bold mb-3">Send Email</h5>
+
+        <div class="row g-3 align-items-start">
+          <div class="col-12 col-lg-4">
+            <label class="form-label">Recipients (select users)</label>
+            <div class="border rounded p-2" style="max-height:220px; overflow:auto;">
+              <div v-for="u in users" :key="u.uid" class="form-check">
+                <input class="form-check-input" type="checkbox" :id="`rcp-${u.uid}`" :value="u.uid" v-model="mailForm.uids" />
+                <label class="form-check-label" :for="`rcp-${u.uid}`">{{ u.email || u.displayName || u.uid }}</label>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-12 col-lg-8">
+            <div class="mb-2 d-flex gap-2">
+              <input class="form-control" v-model.trim="mailForm.from" placeholder="From (verified sender)" />
+              <input class="form-control" v-model.trim="mailForm.subject" placeholder="Subject" />
+            </div>
+            <div class="mb-2">
+              <textarea class="form-control" rows="6" v-model="mailForm.html" placeholder="HTML content (or use Text)"></textarea>
+            </div>
+            <div class="mb-2">
+              <textarea class="form-control" rows="4" v-model="mailForm.text" placeholder="Plain text content (optional)"></textarea>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Attachments</label>
+              <input class="form-control" type="file" multiple @change="onPickFiles" />
+              <div class="text-muted small mt-1" v-if="mailForm.attachments.length">
+                {{ mailForm.attachments.length }} file(s) ready
+              </div>
+            </div>
+            <button class="btn btn-primary" :disabled="sendingMail" @click="onSendMail">
+              {{ sendingMail ? 'Sending...' : 'Send Email' }}
+            </button>
+            <span v-if="mailErr" class="text-danger small ms-2">{{ mailErr }}</span>
+            <span v-if="mailOk" class="text-success small ms-2">{{ mailOk }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
   </section>
 </template>
 
@@ -164,7 +208,7 @@ import {
 } from '../../lib/fxAdmin'
 
 // New admin API (functions) helpers
-import { fetchMetrics, fetchHealth, fetchDailySignups } from '../../lib/adminApi'
+import { fetchMetrics, fetchHealth, fetchDailySignups, sendAdminEmailWithAttachments } from '../../lib/adminApi'
 
 // Chart.js
 import {
@@ -323,6 +367,60 @@ async function resetPwd(email) {
   } catch (e) {
     err.value = e?.message || 'Failed to generate reset link'
   }
+}
+
+/* ---------- Admin Email ---------- */
+const mailForm = ref({ uids: [], from: '', subject: '', html: '', text: '', attachments: [] })
+const sendingMail = ref(false)
+const mailErr = ref('')
+const mailOk = ref('')
+
+async function onSendMail() {
+  mailErr.value = ''
+  mailOk.value = ''
+  try {
+    if (!mailForm.value.uids.length) throw new Error('请选择至少一个收件人')
+    if (!mailForm.value.subject) throw new Error('请输入邮件主题')
+    if (!mailForm.value.html && !mailForm.value.text) throw new Error('请输入邮件内容（HTML 或 Text）')
+    sendingMail.value = true
+    const res = await sendAdminEmailWithAttachments({
+      uids: mailForm.value.uids,
+      subject: mailForm.value.subject,
+      html: mailForm.value.html,
+      text: mailForm.value.text,
+      from: mailForm.value.from || undefined,
+      attachments: mailForm.value.attachments,
+    })
+    mailOk.value = `Sent to ${res.sent} recipients.`
+    // optionally clear
+    // mailForm.value = { uids: [], from: '', subject: '', html: '', text: '' }
+  } catch (e) {
+    mailErr.value = e?.message || 'Failed to send email'
+  } finally {
+    sendingMail.value = false
+  }
+}
+
+function onPickFiles(evt) {
+  const files = Array.from(evt?.target?.files || [])
+  if (!files.length) { mailForm.value.attachments = []; return }
+  Promise.all(files.map(fileToBase64Attachment)).then(arr => {
+    mailForm.value.attachments = arr
+  }).catch(() => {
+    mailForm.value.attachments = []
+  })
+}
+
+function fileToBase64Attachment(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const base64 = (reader.result || '').toString().split(',')[1] || ''
+      resolve({ filename: file.name, type: file.type || 'application/octet-stream', content: base64 })
+    }
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
 }
 
 // ---- PrimeVue DataTable 过滤状态 ----

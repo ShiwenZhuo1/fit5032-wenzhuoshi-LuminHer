@@ -29,3 +29,34 @@ export async function fetchDailySignups() {
   if (!res.ok || !data.ok) throw new Error(data.error || 'daily signups failed')
   return data // { ok:true, range:{start,end}, series:[{date,count}] }
 }
+
+// Send admin email to selected users (by uids)
+export async function sendAdminEmail({ uids, subject, html, text, from }) {
+  const url = withKey(`${BASE}/apiSendEmail`)
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': KEY
+    },
+    body: JSON.stringify({ uids, subject, html, text, from })
+  })
+  const data = await res.json()
+  if (!res.ok || !data.ok) throw new Error(data.error || 'send email failed')
+  return data // { ok:true, sent:n }
+}
+
+export async function sendAdminEmailWithAttachments({ uids, subject, html, text, from, attachments }) {
+  const url = withKey(`${BASE}/apiSendEmail`)
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': KEY
+    },
+    body: JSON.stringify({ uids, subject, html, text, from, attachments })
+  })
+  const data = await res.json()
+  if (!res.ok || !data.ok) throw new Error(data.error || 'send email failed')
+  return data
+}

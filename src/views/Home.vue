@@ -229,6 +229,29 @@
           </div>
         </div>
 
+        <!-- Integrations strip -->
+        <div class="row g-3 mt-1 align-items-center">
+          <div class="col-12 col-md-3"><div class="text-muted small">Powered by</div></div>
+          <div class="col-12 col-md-9">
+            <div class="d-flex flex-wrap gap-3 align-items-center logos">
+              <img src="/vite.svg" alt="Vite" height="28" />
+              <img src="/src/assets/vue.svg" alt="Vue" height="28" />
+              <span class="badge text-bg-light border">Firebase</span>
+              <span class="badge text-bg-light border">Mapbox</span>
+              <span class="badge text-bg-light border">SendGrid</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- CTA band -->
+    <section class="cta-band text-center">
+      <div class="container py-5">
+        <h3 class="fw-bold mb-2">Ready to start your journey?</h3>
+        <p class="text-secondary mb-3">Create your plan in minutes, track progress, and stay motivated.</p>
+        <RouterLink :to="isAuthed ? { name: 'plans' } : { name: 'register' }" class="btn btn-lg btn-dark">Get started</RouterLink>
       </div>
     </section>
   </div>
@@ -273,4 +296,6 @@ const mock = reactive({
 }
 .hover-card:hover { transform: translateY(-2px); transition: transform .15s ease; }
 .stat-tile { background: #fff; }
+.cta-band { background: linear-gradient(180deg, #fff, #f8f9fa); }
+.logos img { filter: grayscale(1); opacity: .7; }
 </style>

@@ -1,5 +1,5 @@
 <template>
-  <nav class="navbar navbar-expand-lg bg-light border-bottom">
+  <nav class="navbar navbar-expand-lg bg-light border-bottom sticky-top glass">
     <div class="container">
       <RouterLink class="navbar-brand fw-bold me-3" :to="{ name: 'home' }">LUMINHER</RouterLink>
 
@@ -16,7 +16,7 @@
       </button>
 
       <div class="collapse navbar-collapse" id="mainNav">
-        <ul class="navbar-nav ms-auto align-items-lg-center">
+        <ul class="navbar-nav ms-auto align-items-lg-center nav-underline">
           <li class="nav-item">
             <RouterLink class="nav-link" :to="{ name: 'plans' }">Plans</RouterLink>
           </li>
