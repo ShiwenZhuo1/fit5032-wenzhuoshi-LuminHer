@@ -62,9 +62,14 @@ function formatDate(iso) {
     <!-- Page header -->
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h2 class="m-0">Community plans</h2>
-      <RouterLink class="btn btn-primary" :to="{ name: 'planForm' }">
-        Create / Share a plan
-      </RouterLink>
+      <div class="d-flex gap-2">
+        <RouterLink class="btn btn-outline-secondary" :to="{ name: 'communityTable' }">
+          View as Table
+        </RouterLink>
+        <RouterLink class="btn btn-primary" :to="{ name: 'planForm' }">
+          Create / Share a plan
+        </RouterLink>
+      </div>
     </div>
 
     <!-- Empty state -->

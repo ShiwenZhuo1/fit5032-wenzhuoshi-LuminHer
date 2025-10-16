@@ -104,6 +104,10 @@
         </div>
 
         <!-- DataTable（分页10行、排序、搜索、按列过滤、条纹行） -->
+        <div class="d-flex justify-content-end mb-2">
+          <button class="btn btn-outline-secondary btn-sm" @click="exportUsersCsv">Export CSV</button>
+        </div>
+
         <DataTable
           :value="users"
           dataKey="uid"
@@ -367,6 +371,52 @@ async function resetPwd(email) {
   } catch (e) {
     err.value = e?.message || 'Failed to generate reset link'
   }
+}
+
+/* ---------- Export CSV (users) ---------- */
+function exportUsersCsv() {
+  const filtered = users.value.filter(u => matchFilters(u))
+  const csv = toCsv(filtered, ['uid','email','displayName','admin','createdAt','lastSignIn'])
+  downloadText(csv, 'users.csv', 'text/csv;charset=utf-8;')
+}
+
+function matchFilters(u) {
+  const g = (globalFilter.value || '').toLowerCase()
+  const okGlobal = !g || ['email','displayName','role'].some(f => String(u[f] || '').toLowerCase().includes(g))
+  const f1 = (colFilters.value.email.value || '')
+  const f2 = (colFilters.value.displayName.value || '')
+  const f3 = (colFilters.value.role.value || '')
+  const ok1 = !f1 || String(u.email || '').includes(f1)
+  const ok2 = !f2 || String(u.displayName || '').includes(f2)
+  const ok3 = !f3 || String(u.role || '').includes(f3)
+  return okGlobal && ok1 && ok2 && ok3
+}
+
+function toCsv(items, headers) {
+  const lines = []
+  lines.push(headers.join(','))
+  for (const it of items) {
+    lines.push(headers.map(h => escapeCsv(it[h])).join(','))
+  }
+  return lines.join('\n')
+}
+function escapeCsv(v) {
+  const s = String(v ?? '')
+  if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+    return '"' + s.replace(/"/g, '""') + '"'
+  }
+  return s
+}
+function downloadText(text, filename, type) {
+  const blob = new Blob([text], { type: type || 'text/plain' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
 }
 
 /* ---------- Admin Email ---------- */

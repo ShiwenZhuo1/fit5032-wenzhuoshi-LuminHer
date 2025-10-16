@@ -411,15 +411,18 @@
           <div class="card mb-4">
             <div class="card-header fw-bold d-flex justify-content-between align-items-center">
               AI Recommendation
-              <button class="btn btn-sm btn-outline-primary" @click="runAI" :disabled="ai.loading">
-                {{ ai.loading ? 'Generating…' : 'Generate advice' }}
-              </button>
+              <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-outline-secondary" @click="exportAdvicePdf" :disabled="!ai.html">Export PDF</button>
+                <button class="btn btn-sm btn-outline-primary" @click="runAI" :disabled="ai.loading">
+                  {{ ai.loading ? 'Generating…' : 'Generate advice' }}
+                </button>
+              </div>
             </div>
             <div class="card-body">
-              <div v-if="!ai.text" class="text-muted small">
+              <div v-if="!ai.html" class="text-muted small">
                 Click "Generate advice" to get personalized tips for your current plan.
               </div>
-              <pre v-else class="small mb-0" style="white-space:pre-wrap">{{ ai.text }}</pre>
+              <div v-else id="adviceHtml" class="advice-content" v-html="ai.html"></div>
             </div>
           </div>
           <!-- Share -->
@@ -455,10 +458,11 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { useAuth } from '../stores/auth'
 import { useRatings } from '../stores/ratings'
+import { sanitizeBasicHtml } from '../utils/sanitize'
 
 
 /* Router & stores */
@@ -758,7 +762,7 @@ async function getPlanAdvice(payload) {
   if (!GEMINI_API_KEY) throw new Error('Missing VITE_GEMINI_API_KEY')
 
   // single correct endpoint
-  const url = `/gemini/v1beta/models/gemini-2.0-flash-001:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`
+  const url = `https://generativelanguage.googleapis.com/${API_VER}/models/${GEMINI_MODEL}:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`
 
   const prompt = [
     'Please give concise, safe fitness & nutrition advice.',
@@ -796,18 +800,91 @@ async function getPlanAdvice(payload) {
 }
 
 // state + trigger
-const ai = ref({ loading: false, text: '' })
+const ai = ref({ loading: false, raw: '', html: '' })
 async function runAI() {
   ai.value.loading = true
-  ai.value.text = ''
+  ai.value.raw = ''
+  ai.value.html = ''
   try {
     const payload = buildPayload()
-    ai.value.text = await getPlanAdvice(payload)
+    const t = await getPlanAdvice(payload)
+    ai.value.raw = t
+    ai.value.html = formatAdviceToHtml(t)
   } catch (e) {
-    ai.value.text = 'Failed to generate advice. ' + (e?.message || '')
+    ai.value.raw = 'Failed to generate advice. ' + (e?.message || '')
+    ai.value.html = `<p>${sanitizeBasicHtml(ai.value.raw)}</p>`
   } finally {
     ai.value.loading = false
   }
+}
+
+function formatAdviceToHtml(text) {
+  const lines = (text || '').split(/\r?\n/)
+  const blocks = []
+  let buf = []
+  let inList = false
+  const flushPara = () => {
+    const p = buf.join(' ').trim()
+    if (p) blocks.push(`<p>${sanitizeBasicHtml(p)}</p>`)
+    buf = []
+  }
+  const flushList = (items) => {
+    if (!items.length) return
+    const li = items.map(s => `<li>${sanitizeBasicHtml(s)}</li>`).join('')
+    blocks.push(`<ul>${li}</ul>`)
+  }
+  let listItems = []
+
+  for (const raw of lines) {
+    const line = raw.trim()
+    if (!line) { // blank
+      if (inList) { flushList(listItems); listItems = []; inList = false }
+      flushPara();
+      continue
+    }
+    // headings like **Nutrition:** or ## Nutrition
+    const heading = line.match(/^\*\*(.+?)\*\*:?$|^#{1,3}\s+(.+)/)
+    if (heading) {
+      if (inList) { flushList(listItems); listItems = []; inList = false }
+      flushPara()
+      const title = sanitizeBasicHtml(heading[1] || heading[2] || '')
+      blocks.push(`<h4>${title}</h4>`)
+      continue
+    }
+    // list item like * text or - text
+    const liMatch = line.match(/^[*-]\s+(.+)/)
+    if (liMatch) {
+      inList = true
+      listItems.push(liMatch[1])
+      continue
+    }
+    buf.push(line)
+  }
+  if (inList) flushList(listItems)
+  flushPara()
+  const html = blocks.join('\n')
+  return html || `<p>${sanitizeBasicHtml(text || '')}</p>`
+}
+
+async function exportAdvicePdf() {
+  if (!ai.value.html) return
+  await nextTick()
+  // 采用浏览器打印为 PDF（跨平台、无需依赖）
+  const el = document.getElementById('adviceHtml')
+  const win = window.open('', '_blank')
+  if (!win) return
+  win.document.write(`<!doctype html><html><head><title>AI Advice</title>
+    <meta charset='utf-8'>
+    <style>
+      body{font-family: -apple-system, system-ui, Segoe UI, Roboto, Arial; line-height:1.6; padding:24px;}
+      h2,h3,h4{margin:16px 0 8px}
+      ul{margin:8px 0 8px 20px}
+      p{margin:8px 0}
+    </style>
+  </head><body>${el.innerHTML}</body></html>`)
+  win.document.close()
+  win.focus()
+  win.print()
 }
 
 </script>

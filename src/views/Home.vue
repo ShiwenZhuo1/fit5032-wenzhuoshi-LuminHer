@@ -243,6 +243,31 @@
           </div>
         </div>
 
+        <!-- Community Featured -->
+        <div class="mt-4">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <h5 class="fw-bold m-0">Community Featured</h5>
+            <RouterLink :to="{ name: 'community' }" class="small">View all</RouterLink>
+          </div>
+          <div v-if="featured.length" class="row g-3">
+            <div v-for="p in featured" :key="p.id" class="col-12 col-md-4">
+              <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body">
+                  <div class="d-flex align-items-center justify-content-between mb-1">
+                    <h6 class="fw-bold m-0 text-truncate" :title="p.title">{{ p.title }}</h6>
+                    <span class="badge text-bg-dark">{{ p.avg.toFixed(1) }}★</span>
+                  </div>
+                  <div class="text-secondary small mb-2">
+                    by {{ p.ownerName || 'anonymous' }} • {{ p.count }} ratings
+                  </div>
+                  <div class="small text-muted">{{ new Date(p.createdAt).toLocaleDateString() }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <p v-else class="text-secondary small m-0">No featured items yet. Share a plan from the Plans page.</p>
+        </div>
+
       </div>
     </section>
 
@@ -264,6 +289,7 @@ import { RouterLink } from 'vue-router'
 
 // Auth store
 import { useAuth } from '../stores/auth'
+import { useRatings } from '../stores/ratings'
 
 // Read auth state from your Pinia store
 const auth = useAuth()
@@ -276,6 +302,17 @@ const mock = reactive({
   community: 12,
   rating: 4.7,
   routes: 5
+})
+
+// Featured community items: top by average rating (desc), then count (desc), then recent
+const ratings = useRatings()
+const featured = computed(() => {
+  const arr = ratings.withStats.slice().sort((a, b) => {
+    if (b.avg !== a.avg) return b.avg - a.avg
+    if (b.count !== a.count) return b.count - a.count
+    return new Date(b.createdAt) - new Date(a.createdAt)
+  })
+  return arr.slice(0, 3)
 })
 </script>
 

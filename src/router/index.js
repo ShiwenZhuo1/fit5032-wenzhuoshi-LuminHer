@@ -7,6 +7,7 @@ const PlanForm = () => import('../plans/PlanForm.vue')
 import Map from '../views/Map.vue'
 import Progress from '../views/Progress.vue'
 import Community from '../views/Community.vue'
+import CommunityTable from '../views/CommunityTable.vue'
 import Account from '../views/Account.vue'
 import { useAuth } from '../stores/auth'
 
@@ -21,6 +22,7 @@ const router = createRouter({
     { path: '/map', name: 'map', component: Map },
     { path: '/progress', name: 'progress', component: Progress },
     { path: '/community', name: 'community', component: Community },
+    { path: '/community/table', name: 'communityTable', component: CommunityTable },
     { path: '/account', name: 'account', component: Account },
     { path: '/dashboard', name: 'userHome', component: () => import('../views/user/UserDashboard.vue'), meta: { auth: true, role: 'user' } },
     { path: '/plans/:id', name: 'planDetail', component: () => import('../plans/PlanDetail.vue') },
