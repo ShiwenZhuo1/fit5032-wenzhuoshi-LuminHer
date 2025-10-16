@@ -1,3 +1,4 @@
+<!-- src/views/Progress.vue -->
 <template>
   <div class="container py-4">
     <h2 class="fw-bold mb-4">Progress</h2>
@@ -14,7 +15,7 @@
             <label class="form-label">Weight (kg)</label>
             <input type="number" class="form-control" v-model.number="entry.weight" />
           </div>
-          <div class="col-md-4 d-flex gap-2">
+          <div class="col-md-4 d-flex gap-2 flex-wrap">
             <button class="btn btn-dark flex-grow-1" @click="addEntry">Add</button>
             <button class="btn btn-outline-dark flex-grow-1" @click="syncOffline">Sync</button>
           </div>
@@ -22,9 +23,31 @@
         <p class="text-muted small mt-2 mb-0">
           Saves to Firestore when online; otherwise cached locally and synced later.
         </p>
-        <p class="small mb-0" :class="online ? 'text-success' : 'text-danger'">
+        <p class="small mb-2" :class="online ? 'text-success' : 'text-danger'">
           Status: {{ online ? 'Online' : 'Offline (local cache)' }}
         </p>
+
+        <!-- Export actions -->
+        <div class="d-flex flex-wrap gap-2">
+          <button
+            class="btn btn-outline-primary"
+            @click="exportCSV"
+            :disabled="!records.length"
+            aria-label="Export progress as CSV"
+            title="Export progress as CSV"
+          >
+            Export CSV
+          </button>
+          <button
+            class="btn btn-outline-secondary"
+            @click="exportPDF"
+            :disabled="!records.length || pdfBusy"
+            aria-label="Export progress as PDF"
+            title="Export progress as PDF"
+          >
+            {{ pdfBusy ? 'Generating PDF…' : 'Export PDF' }}
+          </button>
+        </div>
       </div>
     </div>
 
@@ -161,10 +184,9 @@ async function syncOffline() {
 
 /* ------------ load existing cloud records ------------ */
 async function loadCloud() {
-  if (!auth.currentUser) return
+  if (!auth.currentUser) return []
   try {
     const colRef = collection(db, 'users', auth.currentUser.uid, 'progress')
-    // sort by ts if present; otherwise by date string
     const snap = await getDocs(query(colRef, orderBy('ts', 'asc')))
     const arr = []
     snap.forEach(doc => {
@@ -199,6 +221,92 @@ function renderChart() {
     data: { labels, datasets: [{ label: 'Weight (kg)', data, borderColor: '#1f7aec', tension: 0.3, fill: false }] },
     options: { scales: { y: { title: { display: true, text: 'kg' }, beginAtZero: false } } }
   })
+}
+
+/* ------------ Export: CSV (meets BR E.4) ------------ */
+function exportCSV() {
+  if (!records.value.length) return alert('No data to export.')
+  // sort ASC by ts for consistency
+  const rows = [...records.value].sort((a, b) => (a.ts ?? 0) - (b.ts ?? 0))
+  const header = ['Date', 'Weight(kg)', 'Source']
+  const lines = [header.join(',')]
+
+  for (const r of rows) {
+    const cells = [
+      r.date,
+      Number(r.weight).toFixed(1),
+      r._pending ? 'Local cache' : 'Cloud'
+    ].map(csvEscape)
+    lines.push(cells.join(','))
+  }
+
+  // Add BOM so Excel shows UTF-8 properly
+  const blob = new Blob(['\uFEFF' + lines.join('\n')], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `progress_${new Date().toISOString().slice(0,10)}.csv`
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
+function csvEscape(v) {
+  const s = String(v ?? '')
+  // escape quotes by doubling, wrap with quotes if contains comma or quote or newline
+  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`
+  return s
+}
+
+/* ------------ Export: PDF (optional bonus) ------------ */
+const pdfBusy = ref(false)
+async function exportPDF() {
+  if (!records.value.length) return alert('No data to export.')
+  pdfBusy.value = true
+  try {
+  
+    let jsPDF
+    try {
+      const mod = await import('jspdf')           
+      jsPDF = mod.jsPDF || mod.default
+    } catch {
+      const mod = await import('https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js')
+      jsPDF = mod.jsPDF || mod.default.jsPDF
+    }
+
+    const doc = new jsPDF({ unit: 'pt', format: 'a4' })
+    const left = 48, top = 64, line = 20
+    doc.setFontSize(16)
+    doc.text('LuminHer — Progress Export', left, top)
+    doc.setFontSize(10)
+    doc.text(`Generated: ${new Date().toLocaleString()}`, left, top + line)
+
+    // header
+    let y = top + line * 3
+    doc.setFont(undefined, 'bold')
+    doc.text('Date', left, y)
+    doc.text('Weight (kg)', left + 160, y)
+    doc.text('Source', left + 280, y)
+    doc.setFont(undefined, 'normal')
+    y += 8
+
+    // rows (ASC)
+    const rows = [...records.value].sort((a, b) => (a.ts ?? 0) - (b.ts ?? 0))
+    for (const r of rows) {
+      y += line
+      if (y > 760) { doc.addPage(); y = 64 }
+      doc.text(r.date, left, y)
+      doc.text(Number(r.weight).toFixed(1), left + 160, y)
+      doc.text(r._pending ? 'Local cache' : 'Cloud', left + 280, y)
+    }
+
+    doc.save(`progress_${new Date().toISOString().slice(0,10)}.pdf`)
+  } catch (e) {
+    console.error('PDF export error', e)
+    alert('Failed to generate PDF. (Tip: run `npm i jspdf` for best results)')
+  } finally {
+    pdfBusy.value = false
+  }
 }
 
 /* ------------ init ------------ */

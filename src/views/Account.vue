@@ -1,3 +1,4 @@
+// src/views/Account.vue
 <template>
   <div class="container my-4" v-if="isAuthed">
     <h2 class="fw-bold mb-3">Account</h2>

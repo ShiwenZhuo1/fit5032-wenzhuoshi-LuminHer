@@ -1,3 +1,4 @@
+// src/views/Map.vue
 <template>
   <section class="container py-4">
     <h2 class="mb-2">Map Route Planner</h2>
