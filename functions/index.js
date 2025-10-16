@@ -1,109 +1,105 @@
-// functions/index.js
-const { onCall } = require('firebase-functions/v2/https')
-const { HttpsError } = require('firebase-functions/v2/https')
-const { initializeApp } = require('firebase-admin/app')
+const { onRequest } = require('firebase-functions/v2/https')
+const { getFirestore } = require('firebase-admin/firestore')
 const { getAuth } = require('firebase-admin/auth')
+const functions = require('firebase-functions')
+const admin = require('firebase-admin')
+const cors = require('cors')
 
-// Optional: SendGrid for emails (D.2)
-// const sgMail = require('@sendgrid/mail')
-// sgMail.setApiKey(process.env.SENDGRID_API_KEY)
+admin.initializeApp()
+const corsHandler = cors({ origin: true })  // 允许所有来源，或可指定为：origin: 'http://localhost:5173'
 
-initializeApp()
-
-// --- helpers ---
-function assertIsAdmin(context) {
-  const isAuthed = !!context.auth
-  const isAdmin = !!context.auth?.token?.admin
-  if (!isAuthed) throw new HttpsError('unauthenticated', 'Sign-in required.')
-  if (!isAdmin) throw new HttpsError('permission-denied', 'Admin only.')
+function requireApiKey(req) {
+  const correctKey = process.env.API_KEY
+  const clientKey = req.get('x-api-key') || req.query.key
+  if (!clientKey || clientKey !== correctKey) {
+    const err = new Error('Unauthorized')
+    err.status = 401
+    throw err
+  }
 }
 
-// 1) Promote the caller to admin if their email matches the policy.
-//    IMPORTANT: never copy token fields into custom claims; only set { admin: true }.
-exports.ensureAdminClaim = onCall({ region: 'us-central1' }, async (request) => {
-  const uid = request.auth?.uid
-  const email = request.auth?.token?.email || ''
-  if (!uid) throw new HttpsError('unauthenticated', 'Sign-in required.')
-
-  const shouldBeAdmin = email.endsWith('@admin.com') // customize your rule here
-  const alreadyAdmin = !!request.auth?.token?.admin
-
-  if (shouldBeAdmin && !alreadyAdmin) {
-    await getAuth().setCustomUserClaims(uid, { admin: true })
-    return { updated: true, admin: true }
+// ✅ API: /apiMetrics
+exports.apiMetrics = onRequest(
+  { region: 'australia-southeast1', secrets: ['API_KEY'] },
+  (req, res) => {
+    corsHandler(req, res, async () => {
+      try {
+        requireApiKey(req)
+        const auth = getAuth()
+        const users = await auth.listUsers()
+        const total = users.users.length
+        const admins = users.users.filter(u => u.customClaims?.admin).length
+        res.json({
+          ok: true,
+          metrics: {
+            users_total: total,
+            admins_total: admins,
+            ts: Date.now()
+          }
+        })
+      } catch (err) {
+        res.status(err.status || 500).json({ ok: false, error: err.message })
+      }
+    })
   }
-  return { updated: false, admin: alreadyAdmin }
-})
+)
 
-// 2) List users with pagination (admin only)
-exports.listUsers = onCall({ region: 'us-central1' }, async (request) => {
-  assertIsAdmin(request)
-  const pageToken = request.data?.pageToken || undefined
-  const pageSize = Math.min(Number(request.data?.pageSize) || 20, 1000)
+// ✅ API: /apiProgress
+exports.apiProgress = onRequest(
+  { region: 'australia-southeast1', secrets: ['API_KEY'] },
+  (req, res) => {
+    corsHandler(req, res, async () => {
+      try {
+        requireApiKey(req)
+        const uid = req.query.uid
+        if (!uid) throw new Error('Missing uid')
 
-  const res = await getAuth().listUsers(pageSize, pageToken)
-  const users = res.users.map(u => ({
-    uid: u.uid,
-    email: u.email || null,
-    displayName: u.displayName || null,
-    disabled: !!u.disabled,
-    admin: !!u.customClaims?.admin,
-    createdAt: u.metadata?.creationTime ? new Date(u.metadata.creationTime).getTime() : null,
-    lastSignIn: u.metadata?.lastSignInTime ? new Date(u.metadata.lastSignInTime).getTime() : null,
-  }))
-  return { users, nextPageToken: res.pageToken || null }
-})
+        const db = getFirestore()
+        const snap = await db.collection('users').doc(uid).collection('progress').get()
+        const items = snap.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }))
 
-// 3) Create a user (optional admin flag) - admin only
-exports.createUser = onCall({ region: 'us-central1' }, async (request) => {
-  assertIsAdmin(request)
-  const { email, password, displayName, admin } = request.data || {}
-  if (!email || !password) throw new HttpsError('invalid-argument', 'email and password required')
-
-  const user = await getAuth().createUser({ email, password, displayName })
-  if (admin) await getAuth().setCustomUserClaims(user.uid, { admin: true })
-  return { uid: user.uid }
-})
-
-// 4) Delete user - admin only
-exports.deleteUser = onCall({ region: 'us-central1' }, async (request) => {
-  assertIsAdmin(request)
-  const { uid } = request.data || {}
-  if (!uid) throw new HttpsError('invalid-argument', 'uid is required')
-  await getAuth().deleteUser(uid)
-  return { ok: true }
-})
-
-// 5) Set or unset admin custom claim - admin only
-exports.setUserRole = onCall({ region: 'us-central1' }, async (request) => {
-  assertIsAdmin(request)
-  const { uid, admin } = request.data || {}
-  if (!uid || typeof admin !== 'boolean') {
-    throw new HttpsError('invalid-argument', 'uid and admin(boolean) are required')
+        res.json({ ok: true, uid, items })
+      } catch (err) {
+        res.status(err.status || 500).json({ ok: false, error: err.message })
+      }
+    })
   }
-  const user = await getAuth().getUser(uid)
-  const claims = { ...(user.customClaims || {}) }
-  claims.admin = admin
-  await getAuth().setCustomUserClaims(uid, claims)
-  return { ok: true }
-})
+)
 
-// 6) Generate password reset link (you can email it via SendGrid) - admin only
-exports.generateResetLink = onCall({ region: 'us-central1' }, async (request) => {
-  assertIsAdmin(request)
-  const { email } = request.data || {}
-  if (!email) throw new HttpsError('invalid-argument', 'email is required')
+// ✅ API: /apiHealth
+exports.apiHealth = onRequest(
+  { region: 'australia-southeast1' },
+  (req, res) => {
+    corsHandler(req, res, () => {
+      res.json({
+        ok: true,
+        service: 'luminher-api',
+        region: process.env.FUNCTION_REGION || 'australia-southeast1',
+        timestamp: new Date().toISOString()
+      })
+    })
+  }
+)
 
-  const link = await getAuth().generatePasswordResetLink(email)
-
-  // Optional: send via SendGrid (uncomment if needed)
-  // await sgMail.send({
-  //   to: email,
-  //   from: 'no-reply@yourdomain.com',
-  //   subject: 'Password Reset',
-  //   html: `<p>Click <a href="${link}">here</a> to reset your password.</p>`,
-  //   attachments: [] // add attachments to meet D.2 if required
-  // })
-
-  return { link }
+// ✅ API: /listUsers (原始写法，已带 cors)
+exports.listUsers = functions.https.onRequest((req, res) => {
+  corsHandler(req, res, async () => {
+    try {
+      const listUsersResult = await admin.auth().listUsers(1000)
+      const users = listUsersResult.users.map(userRecord => ({
+        uid: userRecord.uid,
+        email: userRecord.email,
+        displayName: userRecord.displayName,
+        customClaims: userRecord.customClaims || {},
+        metadata: userRecord.metadata
+      }))
+      res.status(200).json({ data: { users } })
+    } catch (error) {
+      console.error('Error listing users:', error)
+      res.status(500).json({ error: 'Internal Server Error' })
+    }
+  })
 })
