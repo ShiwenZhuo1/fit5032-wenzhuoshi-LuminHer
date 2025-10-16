@@ -762,7 +762,10 @@ async function getPlanAdvice(payload) {
   if (!GEMINI_API_KEY) throw new Error('Missing VITE_GEMINI_API_KEY')
 
   // single correct endpoint
-  const url = `https://generativelanguage.googleapis.com/${API_VER}/models/${GEMINI_MODEL}:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`
+  const base = import.meta.env.VITE_FN_BASE
+  const key = import.meta.env.VITE_FN_API_KEY
+  if (!base || !key) throw new Error('Missing VITE_FN_BASE or VITE_FN_API_KEY')
+  const url = `${base}/apiGemini?model=${encodeURIComponent(GEMINI_MODEL)}&v=${encodeURIComponent(API_VER)}&key=${encodeURIComponent(key)}`
 
   const prompt = [
     'Please give concise, safe fitness & nutrition advice.',
@@ -782,7 +785,7 @@ async function getPlanAdvice(payload) {
 
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'x-api-key': key },
     body: JSON.stringify(body)
   })
 

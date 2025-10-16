@@ -295,3 +295,33 @@ exports.apiSendEmail = onRequest(
     })
   }
 )
+
+// ✅ API: /apiGemini — server-side proxy to Google Generative Language API to avoid CORS and protect key
+exports.apiGemini = onRequest(
+  { region: 'australia-southeast1', secrets: ['API_KEY', 'GEMINI_API_KEY'] },
+  (req, res) => {
+    corsHandler(req, res, async () => {
+      try {
+        if (req.method === 'OPTIONS') { res.status(204).send(''); return }
+        requireApiKey(req)
+        if (req.method !== 'POST') { res.status(405).json({ ok:false, error:'Method Not Allowed' }); return }
+
+        const model = req.query.model || 'models/gemini-2.0-flash-001'
+        const apiVer = req.query.v || 'v1beta'
+        const url = `https://generativelanguage.googleapis.com/${apiVer}/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`
+
+        const body = req.body && Object.keys(req.body).length ? req.body : { contents: [] }
+        const r = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        })
+        const text = await r.text()
+        res.status(r.status).type('application/json').send(text)
+      } catch (err) {
+        console.error('apiGemini error:', err)
+        res.status(500).json({ ok:false, error: err?.message || 'gemini failed' })
+      }
+    })
+  }
+)
